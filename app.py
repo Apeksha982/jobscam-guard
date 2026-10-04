@@ -4,11 +4,12 @@ import joblib
 import streamlit as st
 from checks import run_checks
 
-st.set_page_config(page_title="JobScam Guard", page_icon="")
+st.set_page_config(page_title="JobScam Guard", page_icon="🛡️")
 
 
 @st.cache_resource(show_spinner="Training the model on first start (about a minute)...")
 def load_model():
+    import glob
     import zipfile
     import pandas as pd
     from sklearn.feature_extraction.text import TfidfVectorizer
@@ -18,14 +19,18 @@ def load_model():
     if os.path.exists("scam_model.joblib"):
         return joblib.load("scam_model.joblib")
 
-    if os.path.exists("fake_job_postings.zip"):
-        with zipfile.ZipFile("fake_job_postings.zip") as z:
-            names = [n for n in z.namelist()
-                     if n.endswith("fake_job_postings.csv") and "__MACOSX" not in n]
+    paths = [p for p in glob.glob("**/*", recursive=True)
+             if "fake" in p.lower() and "job" in p.lower() and p.lower().endswith((".zip", ".csv"))]
+    if not paths:
+        raise FileNotFoundError("Dataset not found. Files in repo: " + ", ".join(glob.glob("*")))
+    path = paths[0]
+    if path.lower().endswith(".zip"):
+        with zipfile.ZipFile(path) as z:
+            names = [n for n in z.namelist() if n.lower().endswith(".csv") and "__MACOSX" not in n]
             with z.open(names[0]) as f:
                 df = pd.read_csv(f)
     else:
-        df = pd.read_csv("fake_job_postings.csv")
+        df = pd.read_csv(path)
 
     cols = ["title", "company_profile", "description", "requirements", "benefits"]
     df["text"] = df[cols].fillna("").agg(" ".join, axis=1)
